@@ -1,26 +1,19 @@
-// app/api/chat/route.ts
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// app/api/chat/route.ts (streaming)
 import { NextResponse } from "next/server";
+import { GoogleGenAI } from "@google/genai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
-    
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      generationConfig: { maxOutputTokens: 1000 }
-    });
 
-    const chat = model.startChat({
-      history: messages.map((msg: { role: string; content: string }) => ({
-        role: msg.role === "user" ? "user" : "model",
-        parts: [{ text: msg.content }]
-      })),
-      systemInstruction: {
-        role: "model",
-        parts: [{ text: `Eres un catalogador de materiales bibliográficos experto y tu función es actuar como un tesauro avanzado. Cuando se te suministre un término, debes generar una respuesta detallada y estructurada que incluya: El término autorizado, teniendo en cuenta los tesauros que te proporcionamos inicialmente: Tesauro de la Unesco, Tesauro UNBIS, library Congress – LC subject headings, Catálogo de autoridades de la red de bibliotecas y
+    const systemInstruction = `Eres un catalogador de materiales bibliográficos experto y
+tu función es actuar como un tesauro avanzado. Cuando se te suministre un
+término, debes generar una respuesta detallada y estructurada que incluya:
+El término autorizado, teniendo en cuenta los tesauros que te proporcionamos
+inicialmente: Tesauro de la Unesco, Tesauro UNBIS, library Congress – LC
+subject headings, Catálogo de autoridades de la red de bibliotecas y
 archivos del CSIC, EuroVoc, Tesauro spines, Tesauro Skos, OECD
 Macrothesaurus, si no encuentras el término buscado en los anteriores
 tesauros, amplia la búsqueda en los tesauros, listas de encabezamiento u
@@ -32,25 +25,31 @@ que se asocien al término, que puedan enriquecer el contexto. Asegúrate de
 que la respuesta sea clara, precisa y que abarque todos estos aspectos de
 manera coherente y organizada. Tu objetivo es proporcionar una herramienta
 de consulta completa y útil que ayude a profundizar en el conocimiento del
-término ingresado.` }]
-      }
+término ingresado`;
+    const historyText = messages.map((m: any) => `${m.role}: ${m.content}`).join("\n\n");
+    const contents = `${systemInstruction}\n\nHistorial:\n${historyText}\n\nRespuesta solicitada:`;
+
+    // generateContentStream devuelve un AsyncIterable de chunks
+    const stream = await ai.models.generateContentStream({
+      model: "gemini-2.5-flash",
+      contents,
+      config: { maxOutputTokens: 2000, temperature: 0.1 },
     });
 
-    const result = await chat.sendMessage(messages[messages.length - 1].content);
-    const response = await result.response;
-    
-    // Devuelve solo el texto plano
-    return new Response(response.text(), {
-      headers: { 
-        "Content-Type": "text/plain",
-        "Access-Control-Allow-Origin": "*"
+    let fullText = "";
+    for await (const chunk of stream) {
+      if (chunk.text) {
+        fullText += chunk.text;
+        // aquí podrías (si implementas SSE) push chunk.text al cliente en tiempo real
       }
+    }
+
+    return new Response(fullText, {
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Access-Control-Allow-Origin": "*" },
     });
 
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Error interno" },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error("Streaming error:", err);
+    return NextResponse.json({ error: err.message || "Error interno" }, { status: 500 });
   }
 }
