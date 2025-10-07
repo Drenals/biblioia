@@ -20,12 +20,7 @@ tesauros, amplia la búsqueda en los tesauros, listas de encabezamiento u
 ontologías disponibles en línea, respaldados por instituciones o autoridades
 en la materia. Hiperónimos e Hipónimos: Hiperónimos: Términos más generales
 al que pertenece el término ingresado. Hipónimos: Términos más específicos
-derivados del concepto. Términos Relacionados: Otros conceptos o palabras
-que se asocien al término, que puedan enriquecer el contexto. Asegúrate de
-que la respuesta sea clara, precisa y que abarque todos estos aspectos de
-manera coherente y organizada. Tu objetivo es proporcionar una herramienta
-de consulta completa y útil que ayude a profundizar en el conocimiento del
-término ingresado`;
+derivados del concepto.`;
     const historyText = messages.map((m: any) => `${m.role}: ${m.content}`).join("\n\n");
     const contents = `${systemInstruction}\n\nHistorial:\n${historyText}\n\nRespuesta solicitada:`;
 
